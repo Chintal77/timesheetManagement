@@ -7,6 +7,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { CSVLink } from 'react-csv';
+import { Link } from 'react-router-dom';
 
 interface Employee {
   id: number;
@@ -47,6 +48,26 @@ const initialEmployees: Employee[] = [
     role: 'Designer',
     phone: '9988776655',
     department: 'Design',
+    joiningDate: '2023-03-20',
+    status: 'Active',
+  },
+  {
+    id: 4,
+    name: 'Nikhil C',
+    email: 'nikhi;.c@talentBase.com',
+    role: 'Senior Tester',
+    phone: '9988776655',
+    department: 'Design',
+    joiningDate: '2023-03-20',
+    status: 'Active',
+  },
+  {
+    id: 5,
+    name: 'Rahul G',
+    email: 'rahul.g@talentBase.com',
+    role: 'Manager',
+    phone: '9988776655',
+    department: 'Marketing',
     joiningDate: '2023-03-20',
     status: 'Active',
   },
@@ -307,9 +328,12 @@ const Dashboard: React.FC = () => {
               >
                 <td className="px-6 py-4 flex items-center space-x-3">
                   <UserCircleIcon className="h-6 w-6 text-indigo-500" />
-                  <span className="text-gray-800 dark:text-white">
+                  <Link
+                    to={`/employee/${emp.id}`}
+                    className="text-indigo-600 dark:text-indigo-300 font-semibold hover:underline"
+                  >
                     {emp.name}
-                  </span>
+                  </Link>
                 </td>
                 <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
                   {emp.email}
