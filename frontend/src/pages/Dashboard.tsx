@@ -71,6 +71,16 @@ const initialEmployees: Employee[] = [
     joiningDate: '2023-03-20',
     status: 'Active',
   },
+  {
+    id: 5,
+    name: 'Rahul A',
+    email: 'rahul.a@talentBase.com',
+    role: 'Assi. Manager',
+    phone: '9988776655',
+    department: 'Marketing',
+    joiningDate: '2023-03-20',
+    status: 'Inactive',
+  },
 ];
 
 const roleColors: Record<string, string> = {
@@ -238,21 +248,21 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
           <h3 className="text-gray-600 dark:text-gray-300">Total Employees</h3>
-          <p className="text-2xl font-bold">{metrics.total}</p>
+          <p className="text-2xl font-bold text-white">{metrics.total}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
           <h3 className="text-gray-600 dark:text-gray-300">Active Employees</h3>
-          <p className="text-2xl font-bold">{metrics.active}</p>
+          <p className="text-2xl font-bold text-white">{metrics.active}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
           <h3 className="text-gray-600 dark:text-gray-300">
             Inactive Employees
           </h3>
-          <p className="text-2xl font-bold">{metrics.inactive}</p>
+          <p className="text-2xl font-bold text-red-500">{metrics.inactive}</p>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
           <h3 className="text-gray-600 dark:text-gray-300">Departments</h3>
-          <ul>
+          <ul className="text-white">
             {Object.entries(metrics.perDept).map(([dept, count]) => (
               <li key={dept}>
                 {dept}: {count}
