@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EmployeeDetails from './pages/EmployeeDetails';
+import AttendancePage from './pages/AttendancePage';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -24,6 +25,8 @@ const App: React.FC = () => {
         path="/dashboard"
         element={isLoggedIn ? <Dashboard /> : <Navigate to="/" />}
       />
+
+      <Route path="/attendance/:id" element={<AttendancePage />} />
     </Routes>
   );
 };

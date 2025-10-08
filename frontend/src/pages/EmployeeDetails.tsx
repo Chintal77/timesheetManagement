@@ -166,9 +166,17 @@ export default function EmployeeDetails() {
 
   return (
     <div className="min-h-screen bg-gray-900 p-6 text-white">
-      <Link to="/" className="text-blue-400 hover:underline">
-        ← Back to Dashboard
-      </Link>
+      <div className="flex justify-between items-center mb-4">
+        <Link to="/dashboard" className="text-blue-400 hover:underline">
+          ← Back to Dashboard
+        </Link>
+        <Link
+          to={`/attendance/${employee.id}`}
+          className="text-blue-400 hover:underline"
+        >
+          Attendance Data →
+        </Link>
+      </div>
 
       <h1 className="text-3xl font-bold my-4">
         {employee.name} - {employee.role}
