@@ -80,6 +80,20 @@ const employees: Employee[] = baseEmployees.map((emp) => ({
   },
 }));
 
+// ---- Working hours mapping ----
+const statusHours: Record<string, number> = {
+  P: 9,
+  HL: 6.3,
+  A: 0, // Absent gives 0 working hours
+  W: 0,
+};
+
+// ---- LOP per Absent day ----
+const LOP_PER_ABSENT_HOUR = 9;
+
+// Monthly earned leaves per month
+const MONTHLY_EARNED_LEAVES = 2;
+
 // ---- Export CSV (with working hours) ----
 const exportToCSV = (employee: Employee, month: string, dates: Date[]) => {
   let csv = 'Date,Day,Status,Hours\n';
@@ -97,17 +111,6 @@ const exportToCSV = (employee: Employee, month: string, dates: Date[]) => {
   link.download = `${employee.name}_${month}_Attendance.csv`;
   link.click();
 };
-
-// ---- Working hours mapping ----
-const statusHours: Record<string, number> = {
-  P: 9,
-  HL: 6.3,
-  A: 0,
-  W: 0,
-};
-
-// Monthly earned leaves per month
-const MONTHLY_EARNED_LEAVES = 2;
 
 export default function AttendancePage() {
   const { id } = useParams<{ id: string }>();
@@ -142,6 +145,10 @@ export default function AttendancePage() {
     0
   );
 
+  // ---- LOP calculation ----
+  const lopDays = summary['A'] || 0;
+  const lopHours = lopDays * LOP_PER_ABSENT_HOUR;
+
   // ---- Leaves applied ----
   const leavesTaken = summary['HL'] || 0;
   const totalEarnedLeaves = MONTHLY_EARNED_LEAVES - leavesTaken;
@@ -154,7 +161,7 @@ export default function AttendancePage() {
           to={`/employee/${employee.id}`}
           className="text-blue-400 hover:underline"
         >
-          ← Back to Employee List
+          ← Back to Employee
         </Link>
       </div>
 
@@ -194,7 +201,8 @@ export default function AttendancePage() {
       {/* Summary */}
       <div className="flex gap-6 mb-4 text-sm font-medium">
         <div>Present: {summary['P'] || 0}</div>
-        <div>Absent: {summary['A'] || 0}</div>
+        <div>Absent (LOP): {lopDays}</div>
+        <div>LOP Hours: {lopHours}</div>
         <div>Half Leave: {summary['HL'] || 0}</div>
         <div>Weekend: {summary['W'] || 0}</div>
         <div>Total Hours: {totalHours}</div>
@@ -219,7 +227,7 @@ export default function AttendancePage() {
             s === 'P'
               ? 'Present'
               : s === 'A'
-              ? 'Absent'
+              ? 'Absent (LOP)'
               : s === 'HL'
               ? 'Half Leave'
               : 'Weekend';
@@ -307,20 +315,26 @@ export default function AttendancePage() {
                     className={`p-2 text-center border border-gray-700 ${color}`}
                     title={`${monthDates[i].toLocaleDateString(
                       'en-GB'
-                    )} - ${status} (${hours}h)`}
+                    )} - ${status} (${
+                      status === 'A' ? LOP_PER_ABSENT_HOUR : hours
+                    }h)`}
                   >
                     {status}
-                    <div className="text-xs text-gray-100">{hours}h</div>
+                    <div className="text-xs text-gray-100">
+                      {status === 'A' ? LOP_PER_ABSENT_HOUR : hours}h
+                    </div>
                   </td>
                 );
               })}
 
               {/* Summary column */}
               <td className="sticky right-0 bg-gray-900 border border-gray-700 text-center font-semibold z-10">
-                P:{summary['P'] || 0}, A:{summary['A'] || 0}, HL:
-                {summary['HL'] || 0}, W:{summary['W'] || 0}
+                P:{summary['P'] || 0}, A:{lopDays}, HL:{summary['HL'] || 0}, W:
+                {summary['W'] || 0}
                 <br />
                 Total Hours: {totalHours}
+                <br />
+                LOP Hours: {lopHours}
                 <br />
                 Leaves Remaining:{' '}
                 {totalEarnedLeaves < 0 ? 0 : totalEarnedLeaves}

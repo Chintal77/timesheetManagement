@@ -4,9 +4,21 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import EmployeeDetails from './pages/EmployeeDetails';
 import AttendancePage from './pages/AttendancePage';
+import TimesheetFill from './pages/TimesheetFill';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState<'admin' | 'employee' | null>(null);
+
+  // Get logged-in user from localStorage on refresh
+  React.useEffect(() => {
+    const loggedUser = localStorage.getItem('loggedInUser');
+    if (loggedUser) {
+      const user = JSON.parse(loggedUser);
+      setIsLoggedIn(true);
+      setUserRole(user.email === 'admin@gmail.com' ? 'admin' : 'employee');
+    }
+  }, []);
 
   return (
     <Routes>
@@ -14,19 +26,57 @@ const App: React.FC = () => {
         path="/"
         element={
           isLoggedIn ? (
-            <Navigate to="/dashboard" />
+            userRole === 'admin' ? (
+              <Navigate to="/dashboard" />
+            ) : (
+              <Navigate to="/timesheet" />
+            )
           ) : (
-            <Login onLogin={() => setIsLoggedIn(true)} />
+            <Login
+              onLogin={() => {
+                const loggedUser = JSON.parse(
+                  localStorage.getItem('loggedInUser') || '{}'
+                );
+                setUserRole(
+                  loggedUser.email === 'admin@gmail.com' ? 'admin' : 'employee'
+                );
+                setIsLoggedIn(true);
+              }}
+            />
           )
         }
       />
-      <Route path="/employee/:id" element={<EmployeeDetails />} />
+
+      {/* Admin Dashboard */}
       <Route
         path="/dashboard"
-        element={isLoggedIn ? <Dashboard /> : <Navigate to="/" />}
+        element={
+          isLoggedIn && userRole === 'admin' ? (
+            <Dashboard />
+          ) : (
+            <Navigate to="/" />
+          )
+        }
       />
 
+      {/* Employee pages */}
+      <Route
+        path="/timesheet"
+        element={
+          isLoggedIn && userRole === 'employee' ? (
+            <TimesheetFill />
+          ) : (
+            <Navigate to="/" />
+          )
+        }
+      />
+
+      {/* Employee Details & Attendance */}
+      <Route path="/employee/:id" element={<EmployeeDetails />} />
       <Route path="/attendance/:id" element={<AttendancePage />} />
+
+      {/* Catch all */}
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 };

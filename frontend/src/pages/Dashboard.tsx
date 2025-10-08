@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   UserCircleIcon,
   PencilIcon,
@@ -7,7 +8,6 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { CSVLink } from 'react-csv';
-import { Link } from 'react-router-dom';
 
 interface Employee {
   id: number;
@@ -101,6 +101,7 @@ const statusColors: Record<string, string> = {
 };
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate(); // <--- add this
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -220,6 +221,11 @@ const Dashboard: React.FC = () => {
     }, {}),
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('loggedInUser'); // clear any user data
+    navigate('/'); // redirect to login page
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       {/* Header */}
@@ -241,6 +247,12 @@ const Dashboard: React.FC = () => {
           >
             Export CSV
           </CSVLink>
+          <button
+            onClick={handleLogout}
+            className="flex items-center bg-red-500 text-white px-5 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform"
+          >
+            Logout
+          </button>
         </div>
       </div>
 
