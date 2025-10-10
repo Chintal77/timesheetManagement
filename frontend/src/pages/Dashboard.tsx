@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   UserCircleIcon,
   PencilIcon,
@@ -101,7 +101,6 @@ const statusColors: Record<string, string> = {
 };
 
 const Dashboard: React.FC = () => {
-  const navigate = useNavigate(); // <--- add this
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -223,7 +222,7 @@ const Dashboard: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('loggedInUser'); // clear any user data
-    navigate('/'); // redirect to login page
+    window.location.replace('/'); // redirect to login page
   };
 
   return (
@@ -247,6 +246,13 @@ const Dashboard: React.FC = () => {
           >
             Export CSV
           </CSVLink>
+          {/* New Ticket List Button */}
+          <Link
+            to="/AdminTicketPage"
+            className="flex items-center bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform"
+          >
+            📝 Ticket List
+          </Link>
           <button
             onClick={handleLogout}
             className="flex items-center bg-red-500 text-white px-5 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform"
