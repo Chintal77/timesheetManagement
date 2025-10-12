@@ -19,6 +19,7 @@ const TimesheetFill: React.FC = () => {
   const [hours, setHours] = useState<number | ''>('');
   const [date, setDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
 
   const navigate = useNavigate();
 
@@ -46,23 +47,39 @@ const TimesheetFill: React.FC = () => {
     return `${day}/${month}/${year}`;
   };
 
+  // Load entries for current logged-in user
+  useEffect(() => {
+    const loggedUser = localStorage.getItem('loggedInUser');
+    if (!loggedUser) {
+      navigate('/login');
+    } else {
+      const user = JSON.parse(loggedUser);
+      setEmployee(user);
+
+      // ✅ Load entries for this user only
+      const saved = localStorage.getItem(`timesheet_entries_${user.email}`);
+      if (saved) setEntries(JSON.parse(saved));
+    }
+  }, [navigate]);
+
   // Add a new entry
   const handleAddEntry = () => {
     if (!date || !task || !hours) return alert('Please fill all fields!');
+    if (!employee) return;
+
+    const userKey = `timesheet_entries_${employee.email}`;
     const newEntry = { date, task, hours: Number(hours) };
     const updatedEntries = [...entries, newEntry];
+
     setEntries(updatedEntries);
-    localStorage.setItem('timesheet_entries', JSON.stringify(updatedEntries));
+
+    // ✅ Store entries for this specific user
+    localStorage.setItem(userKey, JSON.stringify(updatedEntries));
+
     setDate('');
     setTask('');
     setHours('');
   };
-
-  // Load entries from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('timesheet_entries');
-    if (saved) setEntries(JSON.parse(saved));
-  }, []);
 
   // Sort logic (by date)
   const sortedEntries = [...entries].sort((a, b) => {
@@ -73,6 +90,23 @@ const TimesheetFill: React.FC = () => {
 
   const toggleSortOrder = () => {
     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  };
+
+  // Pagination logic (3 per page)
+  const entriesPerPage = 3;
+  const totalPages = Math.ceil(sortedEntries.length / entriesPerPage);
+  const startIndex = (currentPage - 1) * entriesPerPage;
+  const currentEntries = sortedEntries.slice(
+    startIndex,
+    startIndex + entriesPerPage
+  );
+
+  const nextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
   // Group by month for CSV download
@@ -226,7 +260,7 @@ const TimesheetFill: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {sortedEntries.map((entry, idx) => (
+              {currentEntries.map((entry, idx) => (
                 <tr
                   key={idx}
                   className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
@@ -236,7 +270,7 @@ const TimesheetFill: React.FC = () => {
                   <td className="px-6 py-3">{entry.hours}</td>
                 </tr>
               ))}
-              {sortedEntries.length === 0 && (
+              {currentEntries.length === 0 && (
                 <tr>
                   <td
                     colSpan={3}
@@ -249,6 +283,37 @@ const TimesheetFill: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* ✅ Pagination Controls */}
+        {sortedEntries.length > 0 && (
+          <div className="flex justify-center items-center gap-4 mb-8">
+            <button
+              onClick={prevPage}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 rounded-lg text-white ${
+                currentPage === 1
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-indigo-500 hover:bg-indigo-600'
+              }`}
+            >
+              ⬅️ Prev
+            </button>
+            <span className="text-gray-700 dark:text-gray-300 font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={nextPage}
+              disabled={currentPage === totalPages}
+              className={`px-4 py-2 rounded-lg text-white ${
+                currentPage === totalPages
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-indigo-500 hover:bg-indigo-600'
+              }`}
+            >
+              Next ➡️
+            </button>
+          </div>
+        )}
 
         {/* Monthly CSV Download Section */}
         <div className="flex flex-wrap gap-3 justify-center">

@@ -1,157 +1,105 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-// ---- Interfaces ----
+// ---- Constants ----
+const LOP_PER_ABSENT_HOUR = 9;
+const MONTHLY_EARNED_LEAVES = 2;
+
+// ---- Base employees ----
 interface Employee {
   id: string;
+  email: string;
   name: string;
   department: string;
   designation: string;
-  attendance: Record<string, string[]>; // required
 }
 
-// ---- Utility to generate dates ----
-const generateDates = (startDate: Date, endDate: Date): Date[] => {
-  const dates: Date[] = [];
-  const current = new Date(startDate);
-  while (current <= endDate) {
-    dates.push(new Date(current));
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
-};
-
-// ---- Month dates ----
-const juneDates = generateDates(new Date(2025, 5, 1), new Date(2025, 5, 30));
-const julyDates = generateDates(new Date(2025, 6, 1), new Date(2025, 6, 31));
-const augustDates = generateDates(new Date(2025, 7, 1), new Date(2025, 7, 31));
-const septemberDates = generateDates(
-  new Date(2025, 8, 1),
-  new Date(2025, 8, 30)
-);
-const octoberDates = generateDates(
-  new Date(2025, 9, 1),
-  new Date(2025, 9, new Date().getDate())
-);
-
-// ---- Base employees ----
-const baseEmployees: Omit<Employee, 'attendance'>[] = [
+const employees: Employee[] = [
   {
     id: '1',
     name: 'Gaurav P',
+    email: 'gaurav.p@talentBase.com',
     department: 'IT',
     designation: 'Backend Developer',
   },
-  { id: '2', name: 'Sanket P', department: 'IT', designation: 'Lead' },
+  {
+    id: '2',
+    name: 'Sanket P',
+    email: 'sanket.p@talentBase.com',
+    department: 'IT',
+    designation: 'Lead',
+  },
   {
     id: '3',
     name: 'Biswajit P',
+    email: 'biswajit.p@talentBase.com',
     department: 'Design',
     designation: 'Designer',
   },
   {
     id: '4',
     name: 'Nikhil C',
+    email: 'nikhil.c@talentBase.com',
     department: 'Design',
     designation: 'Senior Tester',
   },
-  { id: '5', name: 'Rahul G', department: 'Marketing', designation: 'Manager' },
-];
-
-// ---- Random attendance generator ----
-const generateDummyAttendance = (dates: Date[]): string[] => {
-  const statuses = ['P', 'A', 'HL'];
-  return dates.map((d) =>
-    d.getDay() === 0
-      ? 'W'
-      : statuses[Math.floor(Math.random() * statuses.length)]
-  );
-};
-
-// ---- Employees with attendance ----
-const employees: Employee[] = baseEmployees.map((emp) => ({
-  ...emp,
-  attendance: {
-    June: generateDummyAttendance(juneDates),
-    July: generateDummyAttendance(julyDates),
-    August: generateDummyAttendance(augustDates),
-    September: generateDummyAttendance(septemberDates),
-    October: generateDummyAttendance(octoberDates),
+  {
+    id: '5',
+    name: 'Rahul G',
+    email: 'rahul.g@talentBase.com',
+    department: 'Marketing',
+    designation: 'Manager',
   },
-}));
-
-// ---- Working hours mapping ----
-const statusHours: Record<string, number> = {
-  P: 9,
-  HL: 6.3,
-  A: 0, // Absent gives 0 working hours
-  W: 0,
-};
-
-// ---- LOP per Absent day ----
-const LOP_PER_ABSENT_HOUR = 9;
-
-// Monthly earned leaves per month
-const MONTHLY_EARNED_LEAVES = 2;
-
-// ---- Export CSV (with working hours) ----
-const exportToCSV = (employee: Employee, month: string, dates: Date[]) => {
-  let csv = 'Date,Day,Status,Hours\n';
-  employee.attendance[month].forEach((status, i) => {
-    const date = dates[i];
-    const dayName = date.toLocaleDateString('en-GB', { weekday: 'short' });
-    const hours = status === 'P' ? 8 : status === 'HL' ? 6.3 : 0;
-    csv += `${date.toLocaleDateString(
-      'en-GB'
-    )},${dayName},${status},${hours}\n`;
-  });
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `${employee.name}_${month}_Attendance.csv`;
-  link.click();
-};
+];
 
 export default function AttendancePage() {
   const { id } = useParams<{ id: string }>();
-  const [selectedMonth, setSelectedMonth] = useState<
-    'June' | 'July' | 'August' | 'September' | 'October'
-  >('June');
+  const employee = employees.find((e) => e.id === id);
 
-  const monthDates =
-    selectedMonth === 'June'
-      ? juneDates
-      : selectedMonth === 'July'
-      ? julyDates
-      : selectedMonth === 'August'
-      ? augustDates
-      : selectedMonth === 'September'
-      ? septemberDates
-      : octoberDates;
-
-  const employee = employees.find((emp) => emp.id === id);
   if (!employee)
     return <div className="p-6 text-white">Employee not found</div>;
 
-  // ---- Summary calculation ----
-  const summary = employee.attendance[selectedMonth].reduce((acc, status) => {
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // ---- Timesheet entries from localStorage ----
+  const saved = localStorage.getItem(`timesheet_entries_${employee.email}`);
+  const timesheetEntries: { date: string; task: string; hours: number }[] =
+    saved ? JSON.parse(saved) : [];
 
-  // ---- Total working hours ----
-  const totalHours = employee.attendance[selectedMonth].reduce(
-    (sum, status) => sum + (statusHours[status] || 0),
-    0
+  // ---- Summary calculation ----
+  const summary = timesheetEntries.reduce(
+    (acc: Record<string, number>, entry) => {
+      const day = new Date(entry.date).getDay();
+      if (entry.hours === 0 && day !== 0)
+        acc['A'] = (acc['A'] || 0) + 1; // Absent
+      else if (entry.hours > 0 && entry.hours < 9)
+        acc['HL'] = (acc['HL'] || 0) + 1; // Half Leave
+      else if (entry.hours >= 9) acc['P'] = (acc['P'] || 0) + 1; // Present
+      else if (day === 0) acc['W'] = (acc['W'] || 0) + 1; // Weekend
+      return acc;
+    },
+    {}
   );
 
-  // ---- LOP calculation ----
+  const totalHours = timesheetEntries.reduce((sum, e) => sum + e.hours, 0);
   const lopDays = summary['A'] || 0;
   const lopHours = lopDays * LOP_PER_ABSENT_HOUR;
-
-  // ---- Leaves applied ----
   const leavesTaken = summary['HL'] || 0;
   const totalEarnedLeaves = MONTHLY_EARNED_LEAVES - leavesTaken;
+
+  const handleDownloadCSV = () => {
+    const header = 'Date,Task,Hours\n';
+    const rows = timesheetEntries
+      .map(
+        (e) =>
+          `${new Date(e.date).toLocaleDateString('en-GB')},${e.task},${e.hours}`
+      )
+      .join('\n');
+    const csv = header + rows;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${employee.name}_Timesheet.csv`;
+    link.click();
+  };
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen text-white">
@@ -165,37 +113,9 @@ export default function AttendancePage() {
         </Link>
       </div>
 
-      {/* Header & Month Selector */}
-      <div className="flex justify-between items-center mb-4">
+      {/* Header */}
+      <div className="mb-4">
         <h1 className="text-3xl font-bold">Attendance of {employee.name}</h1>
-        <div className="flex gap-2">
-          <select
-            value={selectedMonth}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-              setSelectedMonth(
-                e.target.value as
-                  | 'June'
-                  | 'July'
-                  | 'August'
-                  | 'September'
-                  | 'October'
-              )
-            }
-            className="bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2"
-          >
-            <option value="June">June 2025</option>
-            <option value="July">July 2025</option>
-            <option value="August">August 2025</option>
-            <option value="September">September 2025</option>
-            <option value="October">October 2025</option>
-          </select>
-          <button
-            onClick={() => exportToCSV(employee, selectedMonth, monthDates)}
-            className="bg-blue-600 px-3 py-1 rounded hover:bg-blue-700"
-          >
-            Export CSV
-          </button>
-        </div>
       </div>
 
       {/* Summary */}
@@ -240,108 +160,62 @@ export default function AttendancePage() {
         })}
       </div>
 
-      {/* Attendance Table */}
-      <div className="overflow-auto border border-gray-700 rounded-lg">
-        <table className="min-w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-gray-800 sticky top-0 z-20">
-              <th
-                colSpan={4}
-                className="sticky left-0 bg-gray-800 border border-gray-700 z-20"
-              >
-                <div className="flex w-[500px]">
-                  <div className="w-24 p-2 border-r border-gray-700 font-semibold">
-                    Emp ID
-                  </div>
-                  <div className="w-40 p-2 border-r border-gray-700 font-semibold">
-                    Name
-                  </div>
-                  <div className="w-32 p-2 border-r border-gray-700 font-semibold">
-                    Dept
-                  </div>
-                  <div className="w-64 p-2 font-semibold">Designation</div>
-                </div>
-              </th>
-              {monthDates.map((date, i) => (
-                <th
-                  key={i}
-                  className="p-2 border border-gray-700 text-xs text-center whitespace-nowrap"
-                >
-                  {date.toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                  })}
-                </th>
-              ))}
-              <th className="p-2 border border-gray-700 text-center font-semibold sticky right-0 bg-gray-800 z-10">
-                Summary
-              </th>
-            </tr>
-          </thead>
+      {/* Timesheet Table */}
+      <div className="mt-10 bg-gray-800 p-4 rounded-lg shadow-md">
+        <h2 className="text-2xl font-semibold mb-3 text-green-400">
+          🕒 Timesheet Entries (from TimesheetFill)
+        </h2>
 
-          <tbody>
-            <tr className="hover:bg-gray-800 odd:bg-gray-900 even:bg-gray-800">
-              <td
-                colSpan={4}
-                className="sticky left-0 bg-gray-900 border border-gray-700 z-10"
-              >
-                <div className="flex w-[500px]">
-                  <div className="w-24 p-2 border-r border-gray-700">
-                    {employee.id}
-                  </div>
-                  <div className="w-40 p-2 border-r border-gray-700">
-                    {employee.name}
-                  </div>
-                  <div className="w-32 p-2 border-r border-gray-700">
-                    {employee.department}
-                  </div>
-                  <div className="w-64 p-2">{employee.designation}</div>
-                </div>
-              </td>
+        {timesheetEntries.length === 0 ? (
+          <p className="text-gray-400">
+            No timesheet data found for this user.
+          </p>
+        ) : (
+          <div>
+            <div className="overflow-x-auto border border-gray-700 rounded-lg mb-4">
+              <table className="min-w-full border-collapse text-sm">
+                <thead className="bg-gray-700 text-gray-200">
+                  <tr>
+                    <th className="p-2 border border-gray-600 text-left">
+                      Date
+                    </th>
+                    <th className="p-2 border border-gray-600 text-left">
+                      Task
+                    </th>
+                    <th className="p-2 border border-gray-600 text-left">
+                      Hours
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timesheetEntries.map((entry, idx) => (
+                    <tr
+                      key={idx}
+                      className="odd:bg-gray-900 even:bg-gray-800 hover:bg-gray-700 transition"
+                    >
+                      <td className="p-2 border border-gray-700">
+                        {new Date(entry.date).toLocaleDateString('en-GB')}
+                      </td>
+                      <td className="p-2 border border-gray-700">
+                        {entry.task}
+                      </td>
+                      <td className="p-2 border border-gray-700">
+                        {entry.hours}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-              {employee.attendance[selectedMonth].map((status, i) => {
-                const hours = statusHours[status] || 0;
-                const color =
-                  status === 'P'
-                    ? 'bg-green-600'
-                    : status === 'A'
-                    ? 'bg-red-600'
-                    : status === 'HL'
-                    ? 'bg-yellow-600'
-                    : 'bg-gray-600';
-                return (
-                  <td
-                    key={i}
-                    className={`p-2 text-center border border-gray-700 ${color}`}
-                    title={`${monthDates[i].toLocaleDateString(
-                      'en-GB'
-                    )} - ${status} (${
-                      status === 'A' ? LOP_PER_ABSENT_HOUR : hours
-                    }h)`}
-                  >
-                    {status}
-                    <div className="text-xs text-gray-100">
-                      {status === 'A' ? LOP_PER_ABSENT_HOUR : hours}h
-                    </div>
-                  </td>
-                );
-              })}
-
-              {/* Summary column */}
-              <td className="sticky right-0 bg-gray-900 border border-gray-700 text-center font-semibold z-10">
-                P:{summary['P'] || 0}, A:{lopDays}, HL:{summary['HL'] || 0}, W:
-                {summary['W'] || 0}
-                <br />
-                Total Hours: {totalHours}
-                <br />
-                LOP Hours: {lopHours}
-                <br />
-                Leaves Remaining:{' '}
-                {totalEarnedLeaves < 0 ? 0 : totalEarnedLeaves}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            <button
+              onClick={handleDownloadCSV}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md transition"
+            >
+              📄 Export Timesheet CSV
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

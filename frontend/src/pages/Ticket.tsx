@@ -43,6 +43,9 @@ const TicketPage: React.FC = () => {
     email: string;
   } | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const ticketsPerPage = 3; // limit 3 tickets per page
+
   useEffect(() => {
     const loggedUser = localStorage.getItem('loggedInUser');
     if (!loggedUser) navigate('/login');
@@ -112,6 +115,18 @@ const TicketPage: React.FC = () => {
   };
 
   const monthlyTickets = getTicketsByMonth();
+
+  // Pagination logic
+  const totalPages = Math.ceil(tickets.length / ticketsPerPage);
+  const paginatedTickets = tickets.slice(
+    (currentPage - 1) * ticketsPerPage,
+    currentPage * ticketsPerPage
+  );
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
@@ -300,7 +315,7 @@ const TicketPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {tickets.map((ticket, idx) => (
+              {paginatedTickets.map((ticket, idx) => (
                 <tr
                   key={idx}
                   className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
@@ -319,7 +334,7 @@ const TicketPage: React.FC = () => {
                   <td className="px-6 py-3">{ticket.status}</td>
                 </tr>
               ))}
-              {tickets.length === 0 && (
+              {paginatedTickets.length === 0 && (
                 <tr>
                   <td
                     colSpan={10}
@@ -334,6 +349,7 @@ const TicketPage: React.FC = () => {
         </div>
 
         {/* Monthly CSV Download */}
+
         <div className="flex flex-wrap gap-3 justify-center">
           {Object.entries(monthlyTickets).map(([month, data]) => (
             <CSVLink
@@ -349,6 +365,39 @@ const TicketPage: React.FC = () => {
               📅 Download {month} CSV
             </CSVLink>
           ))}
+        </div>
+
+        {/* Pagination Controls */}
+        {tickets.length > ticketsPerPage && (
+          <div className="flex justify-center items-center gap-3 mt-6">
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 bg-gray-300 dark:bg-gray-700 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="text-gray-700 dark:text-gray-300 font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 bg-gray-300 dark:bg-gray-700 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
+
+        {/* Go to Timesheet Link */}
+        <div className="w-full max-w-5xl flex justify-start">
+          <button
+            onClick={() => navigate('/timesheet')}
+            className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-lg transition-all ml-2"
+          >
+            ← Go to Timesheet
+          </button>
         </div>
       </div>
     </div>

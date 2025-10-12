@@ -40,6 +40,8 @@ const severityColors: Record<string, string> = {
 
 const AdminTicketPage: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ticketsPerPage = 3; // limit 3 tickets per page
 
   useEffect(() => {
     const saved = localStorage.getItem('tickets');
@@ -90,6 +92,18 @@ const AdminTicketPage: React.FC = () => {
     window.location.replace('/');
   };
 
+  // Pagination logic
+  const totalPages = Math.ceil(tickets.length / ticketsPerPage);
+  const paginatedTickets = tickets.slice(
+    (currentPage - 1) * ticketsPerPage,
+    currentPage * ticketsPerPage
+  );
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
       {/* Header with Logout */}
@@ -107,18 +121,17 @@ const AdminTicketPage: React.FC = () => {
 
       {/* Ticket Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tickets.length === 0 && (
+        {paginatedTickets.length === 0 && (
           <div className="col-span-full text-center text-gray-600 dark:text-gray-400 py-8 text-lg font-medium">
             No tickets available.
           </div>
         )}
 
-        {tickets.map((ticket, idx) => (
+        {paginatedTickets.map((ticket, idx) => (
           <div
             key={idx}
             className="bg-white dark:bg-gray-800 shadow-xl hover:shadow-2xl rounded-2xl p-5 flex flex-col gap-3 transition-all duration-300"
           >
-            {/* Date + Priority */}
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1 font-medium">
                 <CalendarIcon className="w-4 h-4" /> {formatDate(ticket.date)}
@@ -245,11 +258,31 @@ const AdminTicketPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Monthly CSV Download */}
+      {/* Pagination Controls */}
+      {tickets.length > ticketsPerPage && (
+        <div className="flex justify-center items-center gap-3 mt-6">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1 bg-gray-300 dark:bg-gray-700 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 disabled:opacity-50"
+          >
+            Prev
+          </button>
+          <span className="text-gray-700 dark:text-gray-300 font-medium">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 bg-gray-300 dark:bg-gray-700 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* Monthly CSV Download + Back to Dashboard */}
       <div className="flex flex-wrap justify-between items-center mt-8">
-        {/* Back to Dashboard on bottom-left */}
         <Link
           to="/dashboard"
           className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold mb-2"
@@ -257,7 +290,6 @@ const AdminTicketPage: React.FC = () => {
           ← Back to Dashboard
         </Link>
 
-        {/* CSV download buttons on bottom-right */}
         <div className="flex flex-wrap gap-3">
           {Object.entries(monthlyTickets).map(([month, data]) => (
             <CSVLink
