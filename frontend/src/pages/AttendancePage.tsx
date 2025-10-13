@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { CSVLink } from 'react-csv';
 
 // ---- Constants ----
 const LOP_PER_ABSENT_HOUR = 9;
 const MONTHLY_EARNED_LEAVES = 2;
+const MIN_HOURS_FOR_FULL_DAY = 8.5; // 8 hours 30 minutes
 
 // ---- Base employees ----
 interface Employee {
@@ -12,6 +14,12 @@ interface Employee {
   name: string;
   department: string;
   designation: string;
+}
+
+interface TimesheetEntry {
+  date: string;
+  task: string;
+  hours: number;
 }
 
 const employees: Employee[] = [
@@ -61,45 +69,54 @@ export default function AttendancePage() {
 
   // ---- Timesheet entries from localStorage ----
   const saved = localStorage.getItem(`timesheet_entries_${employee.email}`);
-  const timesheetEntries: { date: string; task: string; hours: number }[] =
-    saved ? JSON.parse(saved) : [];
+  const timesheetEntries: TimesheetEntry[] = saved ? JSON.parse(saved) : [];
 
   // ---- Summary calculation ----
   const summary = timesheetEntries.reduce(
     (acc: Record<string, number>, entry) => {
       const day = new Date(entry.date).getDay();
-      if (entry.hours === 0 && day !== 0)
+
+      if (day === 0) {
+        acc['W'] = (acc['W'] || 0) + 1; // Weekend
+      } else if (entry.hours === 0) {
         acc['A'] = (acc['A'] || 0) + 1; // Absent
-      else if (entry.hours > 0 && entry.hours < 9)
-        acc['HL'] = (acc['HL'] || 0) + 1; // Half Leave
-      else if (entry.hours >= 9) acc['P'] = (acc['P'] || 0) + 1; // Present
-      else if (day === 0) acc['W'] = (acc['W'] || 0) + 1; // Weekend
+      } else if (entry.hours < MIN_HOURS_FOR_FULL_DAY) {
+        acc['HL'] = (acc['HL'] || 0) + 1; // Half Leave (less than 8.5 hrs)
+      } else {
+        acc['P'] = (acc['P'] || 0) + 1; // Present
+      }
+
       return acc;
     },
     {}
   );
 
+  // ---- Totals and deductions ----
   const totalHours = timesheetEntries.reduce((sum, e) => sum + e.hours, 0);
   const lopDays = summary['A'] || 0;
   const lopHours = lopDays * LOP_PER_ABSENT_HOUR;
-  const leavesTaken = summary['HL'] || 0;
-  const totalEarnedLeaves = MONTHLY_EARNED_LEAVES - leavesTaken;
+  const halfLeaves = summary['HL'] || 0;
+  const halfLeaveDeduction = halfLeaves * 0.5;
+  const totalEarnedLeaves = MONTHLY_EARNED_LEAVES - halfLeaveDeduction;
 
-  const handleDownloadCSV = () => {
-    const header = 'Date,Task,Hours\n';
-    const rows = timesheetEntries
-      .map(
-        (e) =>
-          `${new Date(e.date).toLocaleDateString('en-GB')},${e.task},${e.hours}`
-      )
-      .join('\n');
-    const csv = header + rows;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${employee.name}_Timesheet.csv`;
-    link.click();
+  // ---- Group by month for CSV ----
+  const getEntriesByMonth = () => {
+    const groups: Record<string, TimesheetEntry[]> = {};
+    timesheetEntries.forEach((entry) => {
+      const month = new Date(entry.date).toLocaleString('default', {
+        month: 'long',
+        year: 'numeric',
+      });
+      if (!groups[month]) groups[month] = [];
+      groups[month].push({
+        ...entry,
+        date: new Date(entry.date).toLocaleDateString('en-GB'),
+      });
+    });
+    return groups;
   };
+
+  const monthlyEntries = getEntriesByMonth();
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen text-white">
@@ -119,51 +136,24 @@ export default function AttendancePage() {
       </div>
 
       {/* Summary */}
-      <div className="flex gap-6 mb-4 text-sm font-medium">
+      <div className="flex flex-wrap gap-6 mb-4 text-sm font-medium">
         <div>Present: {summary['P'] || 0}</div>
         <div>Absent (LOP): {lopDays}</div>
         <div>LOP Hours: {lopHours}</div>
-        <div>Half Leave: {summary['HL'] || 0}</div>
+        <div>Half Leave (under 8.5 hrs): {halfLeaves}</div>
         <div>Weekend: {summary['W'] || 0}</div>
         <div>Total Hours: {totalHours}</div>
         <div>Monthly Earned Leaves: {MONTHLY_EARNED_LEAVES}</div>
         <div>
-          Leaves Remaining: {totalEarnedLeaves < 0 ? 0 : totalEarnedLeaves}
+          Leaves Remaining:{' '}
+          {totalEarnedLeaves < 0 ? 0 : totalEarnedLeaves.toFixed(1)}
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex gap-4 mb-2 text-sm">
-        {['P', 'A', 'HL', 'W'].map((s) => {
-          const color =
-            s === 'P'
-              ? 'green-600'
-              : s === 'A'
-              ? 'red-600'
-              : s === 'HL'
-              ? 'yellow-600'
-              : 'gray-600';
-          const label =
-            s === 'P'
-              ? 'Present'
-              : s === 'A'
-              ? 'Absent (LOP)'
-              : s === 'HL'
-              ? 'Half Leave'
-              : 'Weekend';
-          return (
-            <div key={s} className="flex items-center gap-1">
-              <span className={`w-4 h-4 inline-block bg-${color}`}></span>
-              {s}: {label}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Timesheet Table */}
-      <div className="mt-10 bg-gray-800 p-4 rounded-lg shadow-md">
-        <h2 className="text-2xl font-semibold mb-3 text-green-400">
-          🕒 Timesheet Entries (from TimesheetFill)
+      {/* ✅ CSV Download Buttons Only */}
+      <div className="mt-10 bg-gray-800 p-6 rounded-lg shadow-md text-center">
+        <h2 className="text-2xl font-semibold mb-4 text-green-400">
+          📥 Download Timesheet CSV
         </h2>
 
         {timesheetEntries.length === 0 ? (
@@ -171,49 +161,17 @@ export default function AttendancePage() {
             No timesheet data found for this user.
           </p>
         ) : (
-          <div>
-            <div className="overflow-x-auto border border-gray-700 rounded-lg mb-4">
-              <table className="min-w-full border-collapse text-sm">
-                <thead className="bg-gray-700 text-gray-200">
-                  <tr>
-                    <th className="p-2 border border-gray-600 text-left">
-                      Date
-                    </th>
-                    <th className="p-2 border border-gray-600 text-left">
-                      Task
-                    </th>
-                    <th className="p-2 border border-gray-600 text-left">
-                      Hours
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timesheetEntries.map((entry, idx) => (
-                    <tr
-                      key={idx}
-                      className="odd:bg-gray-900 even:bg-gray-800 hover:bg-gray-700 transition"
-                    >
-                      <td className="p-2 border border-gray-700">
-                        {new Date(entry.date).toLocaleDateString('en-GB')}
-                      </td>
-                      <td className="p-2 border border-gray-700">
-                        {entry.task}
-                      </td>
-                      <td className="p-2 border border-gray-700">
-                        {entry.hours}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <button
-              onClick={handleDownloadCSV}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md transition"
-            >
-              📄 Export Timesheet CSV
-            </button>
+          <div className="flex flex-wrap gap-4 justify-center">
+            {Object.entries(monthlyEntries).map(([month, data]) => (
+              <CSVLink
+                key={month}
+                data={data}
+                filename={`${employee.name}_Timesheet_${month}.csv`}
+                className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-lg shadow-md transition-all"
+              >
+                📅 Download {month} CSV
+              </CSVLink>
+            ))}
           </div>
         )}
       </div>
