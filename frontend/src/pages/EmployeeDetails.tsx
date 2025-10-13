@@ -68,7 +68,7 @@ const mockEmployees: Employee[] = [
       { name: 'Payment Gateway', duration: 'Jul 2022 - Dec 2022' },
       { name: 'HR System', duration: 'Jan 2023 - Present' },
     ],
-    leaves: { total: 18, markedOff: 5, leavesTaken: 5 },
+    leaves: { total: 4, markedOff: 5, leavesTaken: 5 },
     complaints: {
       raisedAgainst: [
         { by: 'Manager', issue: 'Missed deadline', date: '2023-03-10' },
@@ -162,7 +162,18 @@ export default function EmployeeDetails() {
     );
   }
 
-  const leavesLeft = employee.leaves.total - employee.leaves.leavesTaken;
+  // ---- inside EmployeeDetails component ----
+
+  // Get leavesTakenCount from localStorage
+  const storedLeavesTaken = localStorage.getItem(
+    `leavesTaken_${employee.email}`
+  );
+  const leavesTakenCount = storedLeavesTaken
+    ? Number(JSON.parse(storedLeavesTaken))
+    : employee.leaves.leavesTaken;
+
+  // Calculate leaves left based on stored count
+  const leavesLeft = Math.max(0, employee.leaves.total - leavesTakenCount);
 
   return (
     <div className="min-h-screen bg-gray-900 p-6 text-white">
@@ -233,7 +244,7 @@ export default function EmployeeDetails() {
           <b>Total Leaves Allocated:</b> {employee.leaves.total}
         </p>
         <p>
-          <b>Leaves Taken:</b> {employee.leaves.leavesTaken}
+          <b>Leaves Taken:</b> {leavesTakenCount}
         </p>
         <p>
           <b>Marked Off:</b> {employee.leaves.markedOff}

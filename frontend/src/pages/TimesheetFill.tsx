@@ -13,31 +13,30 @@ interface TimesheetEntry {
   hours: number;
 }
 
+interface Leave {
+  fromDate: string;
+  toDate: string;
+  reportingManager: string;
+  resumeDate: string;
+  summary: string;
+  emergencyNumber: string;
+}
+
 const TimesheetFill: React.FC = () => {
   const [entries, setEntries] = useState<TimesheetEntry[]>([]);
   const [task, setTask] = useState('');
   const [hours, setHours] = useState<number | ''>('');
   const [date, setDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState(1); // ✅ Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
 
   const navigate = useNavigate();
-
   const [employee, setEmployee] = useState<{
     name: string;
     email: string;
   } | null>(null);
 
-  useEffect(() => {
-    const loggedUser = localStorage.getItem('loggedInUser');
-    if (!loggedUser) {
-      navigate('/login');
-    } else {
-      setEmployee(JSON.parse(loggedUser));
-    }
-  }, [navigate]);
-
-  // Helper to format date as dd/mm/yyyy
+  // Format date
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
@@ -47,33 +46,71 @@ const TimesheetFill: React.FC = () => {
     return `${day}/${month}/${year}`;
   };
 
-  // Load entries for current logged-in user
+  // Load entries + leaves
   useEffect(() => {
     const loggedUser = localStorage.getItem('loggedInUser');
     if (!loggedUser) {
       navigate('/login');
-    } else {
-      const user = JSON.parse(loggedUser);
-      setEmployee(user);
-
-      // ✅ Load entries for this user only
-      const saved = localStorage.getItem(`timesheet_entries_${user.email}`);
-      if (saved) setEntries(JSON.parse(saved));
+      return;
     }
+
+    const user = JSON.parse(loggedUser);
+    setEmployee(user);
+
+    const userKey = `timesheet_entries_${user.email}`;
+    const savedEntries = JSON.parse(localStorage.getItem(userKey) || '[]');
+    const savedLeaves = JSON.parse(localStorage.getItem('leaves') || '[]');
+
+    // ✅ Convert leave periods into leave entries
+    const leaveEntries: TimesheetEntry[] = [];
+    savedLeaves.forEach((leave: Leave) => {
+      const from = new Date(leave.fromDate);
+      const to = new Date(leave.toDate);
+
+      while (from <= to) {
+        const formattedDate = from.toISOString().split('T')[0];
+        // Avoid duplicates if entry already exists for that date
+        if (
+          !savedEntries.some((e: TimesheetEntry) => e.date === formattedDate)
+        ) {
+          leaveEntries.push({
+            date: formattedDate,
+            task: `On Leave - ${leave.summary}`,
+            hours: 0,
+          });
+        }
+        from.setDate(from.getDate() + 1);
+      }
+    });
+
+    const allEntries = [...savedEntries, ...leaveEntries];
+    setEntries(allEntries);
   }, [navigate]);
 
-  // Add a new entry
+  // Add entry manually
   const handleAddEntry = () => {
     if (!date || !task || !hours) return alert('Please fill all fields!');
     if (!employee) return;
 
     const userKey = `timesheet_entries_${employee.email}`;
     const newEntry = { date, task, hours: Number(hours) };
+
+    // Prevent overwriting leave days
+    const leaves = JSON.parse(localStorage.getItem('leaves') || '[]');
+    const isLeaveDate = leaves.some((leave: Leave) => {
+      const start = new Date(leave.fromDate);
+      const end = new Date(leave.toDate);
+      const entryDate = new Date(date);
+      return entryDate >= start && entryDate <= end;
+    });
+
+    if (isLeaveDate) {
+      alert('🚫 This date is marked as On Leave. Cannot add entry.');
+      return;
+    }
+
     const updatedEntries = [...entries, newEntry];
-
     setEntries(updatedEntries);
-
-    // ✅ Store entries for this specific user
     localStorage.setItem(userKey, JSON.stringify(updatedEntries));
 
     setDate('');
@@ -81,35 +118,27 @@ const TimesheetFill: React.FC = () => {
     setHours('');
   };
 
-  // Sort logic (by date)
+  // Sorting and Pagination
   const sortedEntries = [...entries].sort((a, b) => {
     const dateA = new Date(a.date).getTime();
     const dateB = new Date(b.date).getTime();
     return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
-  const toggleSortOrder = () => {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-  };
-
-  // Pagination logic (3 per page)
   const entriesPerPage = 3;
   const totalPages = Math.ceil(sortedEntries.length / entriesPerPage);
-  const startIndex = (currentPage - 1) * entriesPerPage;
   const currentEntries = sortedEntries.slice(
-    startIndex,
-    startIndex + entriesPerPage
+    (currentPage - 1) * entriesPerPage,
+    currentPage * entriesPerPage
   );
 
-  const nextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-  };
+  const toggleSortOrder = () =>
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  const nextPage = () =>
+    currentPage < totalPages && setCurrentPage(currentPage + 1);
+  const prevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1);
 
-  const prevPage = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
-  };
-
-  // Group by month for CSV download
+  // Group by month for CSV
   const getEntriesByMonth = () => {
     const groups: Record<string, TimesheetEntry[]> = {};
     entries.forEach((entry) => {
@@ -120,7 +149,7 @@ const TimesheetFill: React.FC = () => {
       if (!groups[month]) groups[month] = [];
       groups[month].push({
         ...entry,
-        date: formatDate(entry.date), // ✅ formatted in CSV
+        date: formatDate(entry.date),
       });
     });
     return groups;
@@ -169,7 +198,7 @@ const TimesheetFill: React.FC = () => {
         🕒 Timesheet Entry
       </h1>
 
-      {/* Entry Form Card */}
+      {/* Entry Form */}
       <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-10">
         <div className="grid md:grid-cols-3 gap-6">
           {/* Date */}
@@ -181,10 +210,8 @@ const TimesheetFill: React.FC = () => {
             <input
               type="date"
               value={date}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setDate(e.target.value)
-              }
-              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-indigo-500 transition-all dark:bg-gray-700 dark:text-white"
+              onChange={(e) => setDate(e.target.value)}
+              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -192,16 +219,14 @@ const TimesheetFill: React.FC = () => {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
               <ClipboardDocumentListIcon className="h-5 w-5 text-indigo-500" />
-              Task Description
+              Task
             </label>
             <input
               type="text"
-              placeholder="Enter your task details..."
               value={task}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setTask(e.target.value)
-              }
-              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-indigo-500 transition-all dark:bg-gray-700 dark:text-white"
+              onChange={(e) => setTask(e.target.value)}
+              placeholder="Task details..."
+              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -209,21 +234,18 @@ const TimesheetFill: React.FC = () => {
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
               <ClockIcon className="h-5 w-5 text-indigo-500" />
-              Time Spent (hrs)
+              Hours
             </label>
             <input
               type="number"
-              placeholder="e.g., 4"
               value={hours}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setHours(Number(e.target.value))
-              }
-              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-indigo-500 transition-all dark:bg-gray-700 dark:text-white"
+              onChange={(e) => setHours(Number(e.target.value))}
+              placeholder="e.g. 4"
+              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white"
             />
           </div>
         </div>
 
-        {/* Add Button */}
         <div className="mt-6 flex justify-center">
           <button
             onClick={handleAddEntry}
@@ -234,7 +256,7 @@ const TimesheetFill: React.FC = () => {
         </div>
       </div>
 
-      {/* Timesheet Table */}
+      {/* Table */}
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
@@ -242,7 +264,7 @@ const TimesheetFill: React.FC = () => {
           </h2>
           <button
             onClick={toggleSortOrder}
-            className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-md transition-all"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-md"
           >
             Sort: {sortOrder === 'asc' ? '⬆️ Asc' : '⬇️ Desc'}
           </button>
@@ -252,18 +274,20 @@ const TimesheetFill: React.FC = () => {
           <table className="min-w-full text-left text-gray-700 dark:text-gray-200">
             <thead className="bg-indigo-100 dark:bg-gray-700 text-indigo-900 dark:text-indigo-300">
               <tr>
-                {['Date', 'Task', 'Hours'].map((head) => (
-                  <th key={head} className="px-6 py-3 font-semibold">
-                    {head}
-                  </th>
-                ))}
+                <th className="px-6 py-3 font-semibold">Date</th>
+                <th className="px-6 py-3 font-semibold">Task</th>
+                <th className="px-6 py-3 font-semibold">Hours</th>
               </tr>
             </thead>
             <tbody>
               {currentEntries.map((entry, idx) => (
                 <tr
                   key={idx}
-                  className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                  className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                    entry.task.includes('On Leave')
+                      ? 'bg-yellow-50 dark:bg-yellow-900/20'
+                      : ''
+                  }`}
                 >
                   <td className="px-6 py-3">{formatDate(entry.date)}</td>
                   <td className="px-6 py-3">{entry.task}</td>
@@ -284,15 +308,15 @@ const TimesheetFill: React.FC = () => {
           </table>
         </div>
 
-        {/* ✅ Pagination Controls */}
+        {/* Pagination */}
         {sortedEntries.length > 0 && (
-          <div className="flex justify-center items-center gap-4 mb-8">
+          <div className="flex justify-center gap-4 mb-8">
             <button
               onClick={prevPage}
               disabled={currentPage === 1}
               className={`px-4 py-2 rounded-lg text-white ${
                 currentPage === 1
-                  ? 'bg-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-400'
                   : 'bg-indigo-500 hover:bg-indigo-600'
               }`}
             >
@@ -306,7 +330,7 @@ const TimesheetFill: React.FC = () => {
               disabled={currentPage === totalPages}
               className={`px-4 py-2 rounded-lg text-white ${
                 currentPage === totalPages
-                  ? 'bg-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-400'
                   : 'bg-indigo-500 hover:bg-indigo-600'
               }`}
             >
@@ -315,14 +339,14 @@ const TimesheetFill: React.FC = () => {
           </div>
         )}
 
-        {/* Monthly CSV Download Section */}
+        {/* CSV Downloads */}
         <div className="flex flex-wrap gap-3 justify-center">
           {Object.entries(monthlyEntries).map(([month, data]) => (
             <CSVLink
               key={month}
               data={data}
               filename={`Timesheet_${month}.csv`}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-md transition-all"
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-md"
             >
               📅 Download {month} CSV
             </CSVLink>

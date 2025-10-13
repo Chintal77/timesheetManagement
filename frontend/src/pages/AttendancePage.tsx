@@ -7,7 +7,6 @@ const LOP_PER_ABSENT_HOUR = 9;
 const MONTHLY_EARNED_LEAVES = 2;
 const MIN_HOURS_FOR_FULL_DAY = 8.5; // 8 hours 30 minutes
 
-// ---- Base employees ----
 interface Employee {
   id: string;
   email: string;
@@ -22,6 +21,13 @@ interface TimesheetEntry {
   hours: number;
 }
 
+interface Leave {
+  fromDate: string;
+  toDate: string;
+  summary: string;
+}
+
+// ---- Base employees ----
 const employees: Employee[] = [
   {
     id: '1',
@@ -68,41 +74,63 @@ export default function AttendancePage() {
     return <div className="p-6 text-white">Employee not found</div>;
 
   // ---- Timesheet entries from localStorage ----
-  const saved = localStorage.getItem(`timesheet_entries_${employee.email}`);
-  const timesheetEntries: TimesheetEntry[] = saved ? JSON.parse(saved) : [];
-
-  // ---- Summary calculation ----
-  const summary = timesheetEntries.reduce(
-    (acc: Record<string, number>, entry) => {
-      const day = new Date(entry.date).getDay();
-
-      if (day === 0) {
-        acc['W'] = (acc['W'] || 0) + 1; // Weekend
-      } else if (entry.hours === 0) {
-        acc['A'] = (acc['A'] || 0) + 1; // Absent
-      } else if (entry.hours < MIN_HOURS_FOR_FULL_DAY) {
-        acc['HL'] = (acc['HL'] || 0) + 1; // Half Leave (less than 8.5 hrs)
-      } else {
-        acc['P'] = (acc['P'] || 0) + 1; // Present
-      }
-
-      return acc;
-    },
-    {}
+  const savedEntries = JSON.parse(
+    localStorage.getItem(`timesheet_entries_${employee.email}`) || '[]'
+  );
+  const savedLeaves: Leave[] = JSON.parse(
+    localStorage.getItem('leaves') || '[]'
   );
 
-  // ---- Totals and deductions ----
-  const totalHours = timesheetEntries.reduce((sum, e) => sum + e.hours, 0);
+  // ---- Include leave entries in timesheet ----
+  const leaveEntries: TimesheetEntry[] = [];
+  savedLeaves.forEach((leave) => {
+    const from = new Date(leave.fromDate);
+    const to = new Date(leave.toDate);
+    while (from <= to) {
+      const dateStr = from.toISOString().split('T')[0];
+      if (!savedEntries.some((e: TimesheetEntry) => e.date === dateStr)) {
+        leaveEntries.push({
+          date: dateStr,
+          task: `On Leave - ${leave.summary}`,
+          hours: 0,
+        });
+      }
+      from.setDate(from.getDate() + 1);
+    }
+  });
+
+  const allEntries = [...savedEntries, ...leaveEntries];
+
+  // ---- Summary calculation ----
+  const summary = allEntries.reduce((acc: Record<string, number>, entry) => {
+    const day = new Date(entry.date).getDay();
+    if (day === 0) acc['W'] = (acc['W'] || 0) + 1; // Weekend
+    else if (entry.hours === 0) acc['A'] = (acc['A'] || 0) + 1; // Absent
+    else if (entry.hours < MIN_HOURS_FOR_FULL_DAY)
+      acc['HL'] = (acc['HL'] || 0) + 1; // Half Leave
+    else acc['P'] = (acc['P'] || 0) + 1; // Present
+    return acc;
+  }, {});
+
+  const totalHours = allEntries.reduce((sum, e) => sum + e.hours, 0);
   const lopDays = summary['A'] || 0;
   const lopHours = lopDays * LOP_PER_ABSENT_HOUR;
   const halfLeaves = summary['HL'] || 0;
   const halfLeaveDeduction = halfLeaves * 0.5;
-  const totalEarnedLeaves = MONTHLY_EARNED_LEAVES - halfLeaveDeduction;
+  const leavesTakenCount = lopDays + halfLeaveDeduction;
+  const leavesLeft = MONTHLY_EARNED_LEAVES - leavesTakenCount;
+
+  // ---- STORE LEAVES TAKEN IN LOCALSTORAGE ----
+
+  localStorage.setItem(
+    `leavesTaken_${employee.email}`,
+    JSON.stringify(leavesTakenCount)
+  );
 
   // ---- Group by month for CSV ----
   const getEntriesByMonth = () => {
     const groups: Record<string, TimesheetEntry[]> = {};
-    timesheetEntries.forEach((entry) => {
+    allEntries.forEach((entry) => {
       const month = new Date(entry.date).toLocaleString('default', {
         month: 'long',
         year: 'numeric',
@@ -120,7 +148,6 @@ export default function AttendancePage() {
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen text-white">
-      {/* Back link */}
       <div className="flex justify-start items-center mb-4">
         <Link
           to={`/employee/${employee.id}`}
@@ -130,12 +157,8 @@ export default function AttendancePage() {
         </Link>
       </div>
 
-      {/* Header */}
-      <div className="mb-4">
-        <h1 className="text-3xl font-bold">Attendance of {employee.name}</h1>
-      </div>
+      <h1 className="text-3xl font-bold mb-4">Attendance of {employee.name}</h1>
 
-      {/* Summary */}
       <div className="flex flex-wrap gap-6 mb-4 text-sm font-medium">
         <div>Present: {summary['P'] || 0}</div>
         <div>Absent (LOP): {lopDays}</div>
@@ -144,19 +167,17 @@ export default function AttendancePage() {
         <div>Weekend: {summary['W'] || 0}</div>
         <div>Total Hours: {totalHours}</div>
         <div>Monthly Earned Leaves: {MONTHLY_EARNED_LEAVES}</div>
+        <div>Leaves Taken: {leavesTakenCount}</div>
         <div>
-          Leaves Remaining:{' '}
-          {totalEarnedLeaves < 0 ? 0 : totalEarnedLeaves.toFixed(1)}
+          Leaves Remaining: {leavesLeft < 0 ? 0 : leavesLeft.toFixed(1)}
         </div>
       </div>
 
-      {/* ✅ CSV Download Buttons Only */}
       <div className="mt-10 bg-gray-800 p-6 rounded-lg shadow-md text-center">
         <h2 className="text-2xl font-semibold mb-4 text-green-400">
           📥 Download Timesheet CSV
         </h2>
-
-        {timesheetEntries.length === 0 ? (
+        {allEntries.length === 0 ? (
           <p className="text-gray-400">
             No timesheet data found for this user.
           </p>
