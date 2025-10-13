@@ -29,12 +29,12 @@ const TimesheetFill: React.FC = () => {
   const [date, setDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
-
-  const navigate = useNavigate();
   const [employee, setEmployee] = useState<{
     name: string;
     email: string;
   } | null>(null);
+
+  const navigate = useNavigate();
 
   // Format date
   const formatDate = (dateStr: string) => {
@@ -46,33 +46,33 @@ const TimesheetFill: React.FC = () => {
     return `${day}/${month}/${year}`;
   };
 
-  // Load entries + leaves
+  // Load timesheet entries + user-specific leaves
   useEffect(() => {
     const loggedUser = localStorage.getItem('loggedInUser');
     if (!loggedUser) {
       navigate('/login');
       return;
     }
-
     const user = JSON.parse(loggedUser);
     setEmployee(user);
 
     const userKey = `timesheet_entries_${user.email}`;
-    const savedEntries = JSON.parse(localStorage.getItem(userKey) || '[]');
-    const savedLeaves = JSON.parse(localStorage.getItem('leaves') || '[]');
+    const savedEntries: TimesheetEntry[] = JSON.parse(
+      localStorage.getItem(userKey) || '[]'
+    );
 
-    // ✅ Convert leave periods into leave entries
+    // ✅ Load leaves for this user only
+    const savedLeaves: Leave[] = JSON.parse(
+      localStorage.getItem(`leaves_${user.email}`) || '[]'
+    );
+
     const leaveEntries: TimesheetEntry[] = [];
-    savedLeaves.forEach((leave: Leave) => {
+    savedLeaves.forEach((leave) => {
       const from = new Date(leave.fromDate);
       const to = new Date(leave.toDate);
-
       while (from <= to) {
         const formattedDate = from.toISOString().split('T')[0];
-        // Avoid duplicates if entry already exists for that date
-        if (
-          !savedEntries.some((e: TimesheetEntry) => e.date === formattedDate)
-        ) {
+        if (!savedEntries.some((e) => e.date === formattedDate)) {
           leaveEntries.push({
             date: formattedDate,
             task: `On Leave - ${leave.summary}`,
@@ -83,8 +83,7 @@ const TimesheetFill: React.FC = () => {
       }
     });
 
-    const allEntries = [...savedEntries, ...leaveEntries];
-    setEntries(allEntries);
+    setEntries([...savedEntries, ...leaveEntries]);
   }, [navigate]);
 
   // Add entry manually
@@ -95,9 +94,11 @@ const TimesheetFill: React.FC = () => {
     const userKey = `timesheet_entries_${employee.email}`;
     const newEntry = { date, task, hours: Number(hours) };
 
-    // Prevent overwriting leave days
-    const leaves = JSON.parse(localStorage.getItem('leaves') || '[]');
-    const isLeaveDate = leaves.some((leave: Leave) => {
+    // ✅ Check leave dates for this user only
+    const leaves: Leave[] = JSON.parse(
+      localStorage.getItem(`leaves_${employee.email}`) || '[]'
+    );
+    const isLeaveDate = leaves.some((leave) => {
       const start = new Date(leave.fromDate);
       const end = new Date(leave.toDate);
       const entryDate = new Date(date);
@@ -147,20 +148,17 @@ const TimesheetFill: React.FC = () => {
         year: 'numeric',
       });
       if (!groups[month]) groups[month] = [];
-      groups[month].push({
-        ...entry,
-        date: formatDate(entry.date),
-      });
+      groups[month].push({ ...entry, date: formatDate(entry.date) });
     });
     return groups;
   };
+
+  const monthlyEntries = getEntriesByMonth();
 
   const handleLogout = () => {
     localStorage.removeItem('loggedInUser');
     window.location.replace('/');
   };
-
-  const monthlyEntries = getEntriesByMonth();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
@@ -214,7 +212,6 @@ const TimesheetFill: React.FC = () => {
               className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white"
             />
           </div>
-
           {/* Task */}
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
@@ -229,7 +226,6 @@ const TimesheetFill: React.FC = () => {
               className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white"
             />
           </div>
-
           {/* Hours */}
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
@@ -245,7 +241,6 @@ const TimesheetFill: React.FC = () => {
             />
           </div>
         </div>
-
         <div className="mt-6 flex justify-center">
           <button
             onClick={handleAddEntry}
@@ -256,7 +251,7 @@ const TimesheetFill: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Timesheet Table */}
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
@@ -269,7 +264,6 @@ const TimesheetFill: React.FC = () => {
             Sort: {sortOrder === 'asc' ? '⬆️ Asc' : '⬇️ Desc'}
           </button>
         </div>
-
         <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-2xl shadow-lg mb-6">
           <table className="min-w-full text-left text-gray-700 dark:text-gray-200">
             <thead className="bg-indigo-100 dark:bg-gray-700 text-indigo-900 dark:text-indigo-300">
@@ -341,16 +335,17 @@ const TimesheetFill: React.FC = () => {
 
         {/* CSV Downloads */}
         <div className="flex flex-wrap gap-3 justify-center">
-          {Object.entries(monthlyEntries).map(([month, data]) => (
-            <CSVLink
-              key={month}
-              data={data}
-              filename={`Timesheet_${month}.csv`}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-md"
-            >
-              📅 Download {month} CSV
-            </CSVLink>
-          ))}
+          {employee &&
+            Object.entries(monthlyEntries).map(([month, data]) => (
+              <CSVLink
+                key={month}
+                data={data}
+                filename={`Timesheet_${employee.name}_${month}.csv`}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow-md"
+              >
+                📅 Download {month} CSV
+              </CSVLink>
+            ))}
         </div>
       </div>
     </div>
