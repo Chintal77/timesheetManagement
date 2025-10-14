@@ -1,6 +1,10 @@
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 
+// ---- Constants ----
+//const LOP_PER_ABSENT_HOUR = 9;
+const MONTHLY_EARNED_LEAVES = 2;
+//const MIN_HOURS_FOR_FULL_DAY = 8.5; // 8 hours 30 minutes
 // ---- Interfaces ----
 interface Project {
   name: string;
@@ -8,9 +12,9 @@ interface Project {
 }
 
 interface Leave {
-  total: number;
-  markedOff: number;
-  leavesTaken: number;
+  fromDate: string;
+  toDate: string;
+  summary?: string;
 }
 
 interface ComplaintAgainst {
@@ -45,7 +49,6 @@ interface Employee {
   joiningDate: string;
   status: string;
   projects: Project[];
-  leaves: Leave;
   complaints: Complaints;
   salary: Salary;
   appraisalDueDate: string;
@@ -68,7 +71,6 @@ const mockEmployees: Employee[] = [
       { name: 'Payment Gateway', duration: 'Jul 2022 - Dec 2022' },
       { name: 'HR System', duration: 'Jan 2023 - Present' },
     ],
-    leaves: { total: 4, markedOff: 5, leavesTaken: 5 },
     complaints: {
       raisedAgainst: [
         { by: 'Manager', issue: 'Missed deadline', date: '2023-03-10' },
@@ -91,7 +93,6 @@ const mockEmployees: Employee[] = [
     joiningDate: '2021-08-10',
     status: 'Active',
     projects: [{ name: 'Cloud Migration', duration: '2021 - Present' }],
-    leaves: { total: 12, markedOff: 2, leavesTaken: 5 },
     complaints: { raisedAgainst: [], raisedBy: [] },
     salary: { fixed: 800000, variable: 200000 },
     appraisalDueDate: '2024-09-15',
@@ -107,7 +108,6 @@ const mockEmployees: Employee[] = [
     joiningDate: '2023-03-20',
     status: 'Active',
     projects: [{ name: 'UI Redesign', duration: '2023 - Present' }],
-    leaves: { total: 5, markedOff: 1, leavesTaken: 5 },
     complaints: { raisedAgainst: [], raisedBy: [] },
     salary: { fixed: 400000, variable: 50000 },
     appraisalDueDate: '2025-01-10',
@@ -123,7 +123,6 @@ const mockEmployees: Employee[] = [
     joiningDate: '2023-03-20',
     status: 'Active',
     projects: [{ name: 'Automation Framework', duration: '2023 - Present' }],
-    leaves: { total: 8, markedOff: 3, leavesTaken: 5 },
     complaints: { raisedAgainst: [], raisedBy: [] },
     salary: { fixed: 500000, variable: 70000 },
     appraisalDueDate: '2024-11-20',
@@ -139,7 +138,6 @@ const mockEmployees: Employee[] = [
     joiningDate: '2023-03-20',
     status: 'Active',
     projects: [{ name: 'Campaign Analytics', duration: '2023 - Present' }],
-    leaves: { total: 10, markedOff: 4, leavesTaken: 5 },
     complaints: { raisedAgainst: [], raisedBy: [] },
     salary: { fixed: 900000, variable: 150000 },
     appraisalDueDate: '2024-10-05',
@@ -150,10 +148,49 @@ const mockEmployees: Employee[] = [
 export default function EmployeeDetails() {
   const { id } = useParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
+  const [leaveSummary, setLeaveSummary] = useState<{
+    availableLeaves: number;
+    leavesTaken: number;
+    leavesRemaining: number;
+  }>({ availableLeaves: 0, leavesTaken: 0, leavesRemaining: 0 });
 
   useEffect(() => {
     const emp = mockEmployees.find((e) => e.id === Number(id));
     setEmployee(emp || null);
+
+    if (emp) {
+      const savedLeaves: Leave[] = JSON.parse(
+        localStorage.getItem(`leaves_${emp.email}`) || '[]'
+      );
+
+      const joining = new Date(emp.joiningDate);
+      const today = new Date();
+      const monthsSinceJoining =
+        (today.getFullYear() - joining.getFullYear()) * 12 +
+        (today.getMonth() - joining.getMonth() - 1); // accrual from next month
+
+      const availableLeaves = monthsSinceJoining * MONTHLY_EARNED_LEAVES;
+
+      // Count leave days
+      let leaveDays = 0;
+      savedLeaves.forEach((leave) => {
+        const from = new Date(leave.fromDate);
+        const to = new Date(leave.toDate);
+        while (from <= to) {
+          leaveDays++;
+          from.setDate(from.getDate() + 1);
+        }
+      });
+
+      const leavesTaken = leaveDays;
+      const leavesRemaining = availableLeaves - leavesTaken;
+
+      setLeaveSummary({
+        availableLeaves,
+        leavesTaken,
+        leavesRemaining: leavesRemaining < 0 ? 0 : leavesRemaining,
+      });
+    }
   }, [id]);
 
   if (!employee) {
@@ -161,19 +198,6 @@ export default function EmployeeDetails() {
       <div className="p-6 text-center text-red-500">Employee not found.</div>
     );
   }
-
-  // ---- inside EmployeeDetails component ----
-
-  // Get leavesTakenCount from localStorage
-  const storedLeavesTaken = localStorage.getItem(
-    `leavesTaken_${employee.email}`
-  );
-  const leavesTakenCount = storedLeavesTaken
-    ? Number(JSON.parse(storedLeavesTaken))
-    : employee.leaves.leavesTaken;
-
-  // Calculate leaves left based on stored count
-  const leavesLeft = Math.max(0, employee.leaves.total - leavesTakenCount);
 
   return (
     <div className="min-h-screen bg-gray-900 p-6 text-white">
@@ -237,20 +261,17 @@ export default function EmployeeDetails() {
         </ul>
       </div>
 
-      {/* Leaves */}
+      {/* Leaves Summary */}
       <div className="bg-gray-800 border rounded-xl shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-3">Leaves</h2>
+        <h2 className="text-xl font-semibold mb-3">Leaves Summary</h2>
         <p>
-          <b>Total Leaves Allocated:</b> {employee.leaves.total}
+          <b>Available Leaves:</b> {leaveSummary.availableLeaves}
         </p>
         <p>
-          <b>Leaves Taken:</b> {leavesTakenCount}
+          <b>Leaves Taken:</b> {leaveSummary.leavesTaken}
         </p>
         <p>
-          <b>Marked Off:</b> {employee.leaves.markedOff}
-        </p>
-        <p>
-          <b>Leaves Left:</b> {leavesLeft}
+          <b>Leaves Remaining:</b> {leaveSummary.leavesRemaining}
         </p>
       </div>
 

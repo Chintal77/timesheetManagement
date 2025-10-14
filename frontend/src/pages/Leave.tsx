@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import {
   CalendarIcon,
   ClipboardDocumentListIcon,
@@ -17,7 +16,6 @@ interface Leave {
 }
 
 const Leave: React.FC = () => {
-  const navigate = useNavigate();
   const [leave, setLeave] = useState<Leave>({
     fromDate: '',
     toDate: '',
@@ -27,6 +25,18 @@ const Leave: React.FC = () => {
     emergencyNumber: '',
   });
 
+  const [leavesList, setLeavesList] = useState<Leave[]>([]);
+
+  // ✅ Load applied leaves for current user
+  useEffect(() => {
+    const loggedInEmail =
+      localStorage.getItem('currentUserEmail') || 'gaurav.p@talentBase.com';
+    const storedLeaves = JSON.parse(
+      localStorage.getItem(`leaves_${loggedInEmail}`) || '[]'
+    );
+    setLeavesList(storedLeaves);
+  }, []);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -35,11 +45,25 @@ const Leave: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const storedLeaves = JSON.parse(localStorage.getItem('leaves') || '[]');
+
+    // ✅ Identify logged-in employee (fallback to Gaurav if not set)
+    const loggedInEmail =
+      localStorage.getItem('currentUserEmail') || 'gaurav.p@talentBase.com';
+
+    // ✅ Fetch & store leaves per user
+    const storedLeaves = JSON.parse(
+      localStorage.getItem(`leaves_${loggedInEmail}`) || '[]'
+    );
     storedLeaves.push(leave);
-    localStorage.setItem('leaves', JSON.stringify(storedLeaves));
+    localStorage.setItem(
+      `leaves_${loggedInEmail}`,
+      JSON.stringify(storedLeaves)
+    );
+
+    setLeavesList(storedLeaves);
+
     alert('✅ Leave applied successfully!');
-    navigate('/timesheet-fill');
+    // ❌ No navigation to timesheet
   };
 
   return (
@@ -49,12 +73,6 @@ const Leave: React.FC = () => {
         <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
           🏖️ Apply for Leave
         </h2>
-        <button
-          onClick={() => navigate('/timesheet')}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl shadow-md hover:scale-105 transition-all duration-200"
-        >
-          ← Back to Timesheet
-        </button>
       </div>
 
       {/* Form Card */}
@@ -172,9 +190,53 @@ const Leave: React.FC = () => {
         </form>
       </div>
 
+      {/* ✅ Leave Summary Table */}
+      {leavesList.length > 0 && (
+        <div className="max-w-5xl mx-auto mt-10 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 overflow-x-auto">
+          <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-100">
+            🗓️ Summary of Leaves Applied
+          </h3>
+          <table className="min-w-full border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300">
+            <thead className="bg-indigo-100 dark:bg-gray-700">
+              <tr>
+                <th className="p-3 border">From</th>
+                <th className="p-3 border">To</th>
+                <th className="p-3 border">Resume Date</th>
+                <th className="p-3 border">Manager</th>
+                <th className="p-3 border">Reason</th>
+                <th className="p-3 border">Emergency Contact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leavesList.map((l, index) => (
+                <tr
+                  key={index}
+                  className={`${
+                    index % 2 === 0
+                      ? 'bg-gray-50 dark:bg-gray-800'
+                      : 'bg-white dark:bg-gray-900'
+                  }`}
+                >
+                  <td className="p-3 border text-center">{l.fromDate}</td>
+                  <td className="p-3 border text-center">{l.toDate}</td>
+                  <td className="p-3 border text-center">{l.resumeDate}</td>
+                  <td className="p-3 border text-center">
+                    {l.reportingManager}
+                  </td>
+                  <td className="p-3 border text-center">{l.summary}</td>
+                  <td className="p-3 border text-center">
+                    {l.emergencyNumber}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Info Footer */}
       <div className="mt-8 text-center text-gray-600 dark:text-gray-400">
-        🗓️ Once applied, your leave will appear in the Timesheet & CSV.
+        🗓️ Your applied leaves are displayed above and also saved locally.
       </div>
     </div>
   );

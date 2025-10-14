@@ -33,6 +33,7 @@ const TimesheetFill: React.FC = () => {
     name: string;
     email: string;
   } | null>(null);
+  const [leaveDates, setLeaveDates] = useState<string[]>([]); // ✅ store leave dates
 
   const navigate = useNavigate();
 
@@ -46,7 +47,7 @@ const TimesheetFill: React.FC = () => {
     return `${day}/${month}/${year}`;
   };
 
-  // Load timesheet entries + user-specific leaves
+  // ✅ Load timesheet entries + leave entries + store leave date list
   useEffect(() => {
     const loggedUser = localStorage.getItem('loggedInUser');
     if (!loggedUser) {
@@ -61,17 +62,20 @@ const TimesheetFill: React.FC = () => {
       localStorage.getItem(userKey) || '[]'
     );
 
-    // ✅ Load leaves for this user only
     const savedLeaves: Leave[] = JSON.parse(
       localStorage.getItem(`leaves_${user.email}`) || '[]'
     );
 
     const leaveEntries: TimesheetEntry[] = [];
+    const leaveDateList: string[] = [];
+
+    // ✅ Add all leave days to entries + record leave dates for disabling
     savedLeaves.forEach((leave) => {
       const from = new Date(leave.fromDate);
       const to = new Date(leave.toDate);
       while (from <= to) {
         const formattedDate = from.toISOString().split('T')[0];
+        leaveDateList.push(formattedDate);
         if (!savedEntries.some((e) => e.date === formattedDate)) {
           leaveEntries.push({
             date: formattedDate,
@@ -83,32 +87,27 @@ const TimesheetFill: React.FC = () => {
       }
     });
 
+    setLeaveDates(leaveDateList);
     setEntries([...savedEntries, ...leaveEntries]);
   }, [navigate]);
+
+  // ✅ Disable leave dates in date picker
+  const isLeaveDate = (checkDate: string) => {
+    return leaveDates.includes(checkDate);
+  };
 
   // Add entry manually
   const handleAddEntry = () => {
     if (!date || !task || !hours) return alert('Please fill all fields!');
     if (!employee) return;
 
-    const userKey = `timesheet_entries_${employee.email}`;
-    const newEntry = { date, task, hours: Number(hours) };
-
-    // ✅ Check leave dates for this user only
-    const leaves: Leave[] = JSON.parse(
-      localStorage.getItem(`leaves_${employee.email}`) || '[]'
-    );
-    const isLeaveDate = leaves.some((leave) => {
-      const start = new Date(leave.fromDate);
-      const end = new Date(leave.toDate);
-      const entryDate = new Date(date);
-      return entryDate >= start && entryDate <= end;
-    });
-
-    if (isLeaveDate) {
+    if (isLeaveDate(date)) {
       alert('🚫 This date is marked as On Leave. Cannot add entry.');
       return;
     }
+
+    const userKey = `timesheet_entries_${employee.email}`;
+    const newEntry = { date, task, hours: Number(hours) };
 
     const updatedEntries = [...entries, newEntry];
     setEntries(updatedEntries);
@@ -191,7 +190,6 @@ const TimesheetFill: React.FC = () => {
         </div>
       </div>
 
-      {/* Title */}
       <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-6 text-center">
         🕒 Timesheet Entry
       </h1>
@@ -202,20 +200,24 @@ const TimesheetFill: React.FC = () => {
           {/* Date */}
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-indigo-500" />
-              Date
+              <CalendarIcon className="h-5 w-5 text-indigo-500" /> Date
             </label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white"
+              disabled={isLeaveDate(date)} // ✅ disable leave dates
+              className={`p-3 border rounded-lg focus:ring-2 focus:ring-indigo-400 dark:bg-gray-700 dark:text-white ${
+                isLeaveDate(date)
+                  ? 'bg-red-100 dark:bg-red-800 cursor-not-allowed'
+                  : ''
+              }`}
             />
           </div>
           {/* Task */}
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
-              <ClipboardDocumentListIcon className="h-5 w-5 text-indigo-500" />
+              <ClipboardDocumentListIcon className="h-5 w-5 text-indigo-500" />{' '}
               Task
             </label>
             <input
@@ -229,8 +231,7 @@ const TimesheetFill: React.FC = () => {
           {/* Hours */}
           <div className="flex flex-col">
             <label className="text-gray-700 dark:text-gray-300 mb-2 font-medium flex items-center gap-2">
-              <ClockIcon className="h-5 w-5 text-indigo-500" />
-              Hours
+              <ClockIcon className="h-5 w-5 text-indigo-500" /> Hours
             </label>
             <input
               type="number"
@@ -241,6 +242,7 @@ const TimesheetFill: React.FC = () => {
             />
           </div>
         </div>
+
         <div className="mt-6 flex justify-center">
           <button
             onClick={handleAddEntry}
@@ -264,6 +266,7 @@ const TimesheetFill: React.FC = () => {
             Sort: {sortOrder === 'asc' ? '⬆️ Asc' : '⬇️ Desc'}
           </button>
         </div>
+
         <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-2xl shadow-lg mb-6">
           <table className="min-w-full text-left text-gray-700 dark:text-gray-200">
             <thead className="bg-indigo-100 dark:bg-gray-700 text-indigo-900 dark:text-indigo-300">
