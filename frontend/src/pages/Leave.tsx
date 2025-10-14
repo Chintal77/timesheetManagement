@@ -238,6 +238,16 @@ const Leave: React.FC = () => {
       <div className="mt-8 text-center text-gray-600 dark:text-gray-400">
         🗓️ Your applied leaves are displayed above and also saved locally.
       </div>
+
+      {/* Info Footer */}
+      <div className="mt-8 flex justify-between items-center text-gray-600 dark:text-gray-400">
+        <a
+          href="/timesheet"
+          className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+        >
+          ← Go to Timesheet
+        </a>
+      </div>
     </div>
   );
 };
