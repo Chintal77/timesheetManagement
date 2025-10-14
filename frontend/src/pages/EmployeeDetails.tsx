@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
 // ---- Constants ----
-//const LOP_PER_ABSENT_HOUR = 9;
 const MONTHLY_EARNED_LEAVES = 2;
-//const MIN_HOURS_FOR_FULL_DAY = 8.5; // 8 hours 30 minutes
+
 // ---- Interfaces ----
 interface Project {
   name: string;
@@ -98,61 +97,19 @@ const mockEmployees: Employee[] = [
     appraisalDueDate: '2024-09-15',
     rating: 4.8,
   },
-  {
-    id: 3,
-    name: 'Biswajit P',
-    email: 'bissu.p@talentBase.com',
-    role: 'Designer',
-    phone: '9988776655',
-    department: 'Design',
-    joiningDate: '2023-03-20',
-    status: 'Active',
-    projects: [{ name: 'UI Redesign', duration: '2023 - Present' }],
-    complaints: { raisedAgainst: [], raisedBy: [] },
-    salary: { fixed: 400000, variable: 50000 },
-    appraisalDueDate: '2025-01-10',
-    rating: 4.0,
-  },
-  {
-    id: 4,
-    name: 'Nikhil C',
-    email: 'nikhil.c@talentBase.com',
-    role: 'Senior Tester',
-    phone: '9988776655',
-    department: 'Design',
-    joiningDate: '2023-03-20',
-    status: 'Active',
-    projects: [{ name: 'Automation Framework', duration: '2023 - Present' }],
-    complaints: { raisedAgainst: [], raisedBy: [] },
-    salary: { fixed: 500000, variable: 70000 },
-    appraisalDueDate: '2024-11-20',
-    rating: 3.9,
-  },
-  {
-    id: 5,
-    name: 'Rahul G',
-    email: 'rahul.g@talentBase.com',
-    role: 'Manager',
-    phone: '9988776655',
-    department: 'Marketing',
-    joiningDate: '2023-03-20',
-    status: 'Active',
-    projects: [{ name: 'Campaign Analytics', duration: '2023 - Present' }],
-    complaints: { raisedAgainst: [], raisedBy: [] },
-    salary: { fixed: 900000, variable: 150000 },
-    appraisalDueDate: '2024-10-05',
-    rating: 4.7,
-  },
+  // Add more employees if needed
 ];
 
 export default function EmployeeDetails() {
   const { id } = useParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [leaveSummary, setLeaveSummary] = useState<{
-    availableLeaves: number;
-    leavesTaken: number;
-    leavesRemaining: number;
-  }>({ availableLeaves: 0, leavesTaken: 0, leavesRemaining: 0 });
+  const [leaveSummary, setLeaveSummary] = useState({
+    availableLeaves: 0,
+    leavesTaken: 0,
+    leavesRemaining: 0,
+  });
+  const [leaveHistory, setLeaveHistory] = useState<Leave[]>([]);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     const emp = mockEmployees.find((e) => e.id === Number(id));
@@ -162,16 +119,17 @@ export default function EmployeeDetails() {
       const savedLeaves: Leave[] = JSON.parse(
         localStorage.getItem(`leaves_${emp.email}`) || '[]'
       );
+      setLeaveHistory(savedLeaves);
 
       const joining = new Date(emp.joiningDate);
       const today = new Date();
       const monthsSinceJoining =
         (today.getFullYear() - joining.getFullYear()) * 12 +
-        (today.getMonth() - joining.getMonth() - 1); // accrual from next month
+        (today.getMonth() - joining.getMonth() - 1);
 
       const availableLeaves = monthsSinceJoining * MONTHLY_EARNED_LEAVES;
 
-      // Count leave days
+      // Count total leave days
       let leaveDays = 0;
       savedLeaves.forEach((leave) => {
         const from = new Date(leave.fromDate);
@@ -182,13 +140,10 @@ export default function EmployeeDetails() {
         }
       });
 
-      const leavesTaken = leaveDays;
-      const leavesRemaining = availableLeaves - leavesTaken;
-
       setLeaveSummary({
         availableLeaves,
-        leavesTaken,
-        leavesRemaining: leavesRemaining < 0 ? 0 : leavesRemaining,
+        leavesTaken: leaveDays,
+        leavesRemaining: Math.max(0, availableLeaves - leaveDays),
       });
     }
   }, [id]);
@@ -201,15 +156,16 @@ export default function EmployeeDetails() {
 
   return (
     <div className="min-h-screen bg-gray-900 p-6 text-white">
-      <div className="flex justify-between items-center mb-4">
+      {/* Back Links */}
+      <div className="flex justify-between mb-4">
         <Link to="/dashboard" className="text-blue-400 hover:underline">
-          ← Back to Dashboard
+          ← Back
         </Link>
         <Link
           to={`/attendance/${employee.id}`}
           className="text-blue-400 hover:underline"
         >
-          Attendance Data →
+          Attendance →
         </Link>
       </div>
 
@@ -218,7 +174,7 @@ export default function EmployeeDetails() {
       </h1>
 
       {/* Personal Info */}
-      <div className="bg-gray-800 border rounded-xl shadow p-6 mb-6">
+      <div className="bg-gray-800 p-6 rounded-xl mb-6">
         <h2 className="text-xl font-semibold mb-3">Employee Information</h2>
         <p>
           <b>Email:</b> {employee.email}
@@ -250,7 +206,7 @@ export default function EmployeeDetails() {
       </div>
 
       {/* Project History */}
-      <div className="bg-gray-800 border rounded-xl shadow p-6 mb-6">
+      <div className="bg-gray-800 p-6 rounded-xl mb-6">
         <h2 className="text-xl font-semibold mb-3">Project History</h2>
         <ul className="list-disc ml-6">
           {employee.projects.map((proj, idx) => (
@@ -262,7 +218,7 @@ export default function EmployeeDetails() {
       </div>
 
       {/* Leaves Summary */}
-      <div className="bg-gray-800 border rounded-xl shadow p-6 mb-6">
+      <div className="bg-gray-800 p-6 rounded-xl mb-6">
         <h2 className="text-xl font-semibold mb-3">Leaves Summary</h2>
         <p>
           <b>Available Leaves:</b> {leaveSummary.availableLeaves}
@@ -273,11 +229,59 @@ export default function EmployeeDetails() {
         <p>
           <b>Leaves Remaining:</b> {leaveSummary.leavesRemaining}
         </p>
+        <button
+          onClick={() => setShowModal(true)}
+          className="mt-3 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded text-white"
+        >
+          📝 View Leave History
+        </button>
       </div>
+
+      {/* Leave History Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-3xl relative">
+            <button
+              onClick={() => setShowModal(false)}
+              className="absolute top-4 right-4 text-white text-xl font-bold"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-semibold mb-4">Leave History</h2>
+            {leaveHistory.length === 0 ? (
+              <p>No leaves applied yet.</p>
+            ) : (
+              <table className="min-w-full border border-gray-700 text-sm text-white">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="p-2 border">From</th>
+                    <th className="p-2 border">To</th>
+                    <th className="p-2 border">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaveHistory.map((l, idx) => (
+                    <tr
+                      key={idx}
+                      className={idx % 2 === 0 ? 'bg-gray-900' : 'bg-gray-800'}
+                    >
+                      <td className="p-2 border text-center">{l.fromDate}</td>
+                      <td className="p-2 border text-center">{l.toDate}</td>
+                      <td className="p-2 border text-center">
+                        {l.summary || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Complaints */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gray-800 border rounded-xl shadow p-6">
+        <div className="bg-gray-800 p-6 rounded-xl">
           <h2 className="text-xl font-semibold mb-3">
             Complaints Raised Against
           </h2>
@@ -293,7 +297,7 @@ export default function EmployeeDetails() {
             </ul>
           )}
         </div>
-        <div className="bg-gray-800 border rounded-xl shadow p-6">
+        <div className="bg-gray-800 p-6 rounded-xl">
           <h2 className="text-xl font-semibold mb-3">Complaints Raised By</h2>
           {employee.complaints.raisedBy.length === 0 ? (
             <p>No complaints.</p>
