@@ -8,6 +8,7 @@ import TimesheetFill from './pages/TimesheetFill';
 import TicketPage from './pages/Ticket';
 import AdminTicketPage from './pages/AdminTicketPage';
 import Leave from './pages/Leave';
+import AttendanceSummary from './pages/employeeAttendance';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -81,6 +82,7 @@ const App: React.FC = () => {
       <Route path="/tickets" element={<TicketPage />} />
       <Route path="/leaves" element={<Leave />} />
       <Route path="/AdminTicketPage" element={<AdminTicketPage />} />
+      <Route path="/summary" element={<AttendanceSummary />} />
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" />} />

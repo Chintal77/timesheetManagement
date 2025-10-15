@@ -72,7 +72,7 @@ const initialEmployees: Employee[] = [
     status: 'Active',
   },
   {
-    id: 5,
+    id: 6,
     name: 'Rahul A',
     email: 'rahul.a@talentBase.com',
     role: 'Assi. Manager',
@@ -80,6 +80,46 @@ const initialEmployees: Employee[] = [
     department: 'Marketing',
     joiningDate: '2023-03-20',
     status: 'Inactive',
+  },
+  {
+    id: 7,
+    name: 'Rahul A',
+    email: 'rahul.a@talentBase.com',
+    role: 'Assi. Manager',
+    phone: '9988776655',
+    department: 'Marketing',
+    joiningDate: '2023-03-20',
+    status: 'Active',
+  },
+  {
+    id: 8,
+    name: 'Rahul A',
+    email: 'rahul.a@talentBase.com',
+    role: 'Assi. Manager',
+    phone: '9988776655',
+    department: 'Marketing',
+    joiningDate: '2023-03-20',
+    status: 'Active',
+  },
+  {
+    id: 9,
+    name: 'Rahul A',
+    email: 'rahul.a@talentBase.com',
+    role: 'Assi. Manager',
+    phone: '9988776655',
+    department: 'Marketing',
+    joiningDate: '2023-03-20',
+    status: 'Active',
+  },
+  {
+    id: 10,
+    name: 'Rahul A',
+    email: 'rahul.a@talentBase.com',
+    role: 'Assi. Manager',
+    phone: '9988776655',
+    department: 'Marketing',
+    joiningDate: '2023-03-20',
+    status: 'Active',
   },
 ];
 
@@ -253,6 +293,13 @@ const Dashboard: React.FC = () => {
           >
             📝 Ticket List
           </Link>
+          <Link
+            to="/summary"
+            className="flex items-center bg-teal-500 hover:bg-teal-600 text-white px-5 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform"
+          >
+            Attendance Summary
+          </Link>
+
           <button
             onClick={handleLogout}
             className="flex items-center bg-red-500 text-white px-5 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform"
